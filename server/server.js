@@ -12,18 +12,32 @@ connectDB();
 
 const app = express();
 
-// Middleware
-app.use(cors({ origin: process.env.CORS_ORIGIN }));
+// Parse allowed origins from .env
+const allowedOrigins = process.env.CORS_ORIGIN.split(",");
+
+// Middleware: CORS and JSON parser
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like Postman or curl)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 
-// Main Server
+// Create HTTP server
 const server = http.createServer(app);
 
-// Initialize Socket.IO
+// Initialize Socket.IO with CORS
 const io = new Server(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN,
-    methods: ["GET", "POST"]
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
   }
 });
 initializeSocket(io);
@@ -31,12 +45,13 @@ initializeSocket(io);
 // API Routes
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/matches', authMiddleware, require('./routes/matchRoutes'));
-app.use('/api/leaderboard', require('./routes/leaderboardRoutes')); // <-- ADD THIS LINE
+app.use('/api/leaderboard', require('./routes/leaderboardRoutes'));
 
 // Simple test route
 app.get('/', (req, res) => {
   res.send('TypeClash Server is running!');
 });
 
+// Start the server
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
