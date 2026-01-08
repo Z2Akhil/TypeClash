@@ -1,0 +1,21 @@
+# Node modules
+node_modules/
+
+# Build output
+dist/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.*.local
+
+# Editor junk
+.DS_Store
+.vscode/
+.idea/
+
+# Deployment
+.vercel/
+netlify.toml

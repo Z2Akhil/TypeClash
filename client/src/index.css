@@ -1,0 +1,16 @@
+/* Set the default theme to dark */
+body {
+  background-color: #212529; /* Bootstrap's 'dark' color */
+  color: #f8f9fa; /* Bootstrap's 'light' color */
+  font-family: monospace;
+}
+
+/* Custom styles for a darker theme on components */
+.bg-dark-secondary {
+  background-color: #343a40; /* Bootstrap's 'secondary' dark gray */
+}
+
+.text-cyan {
+  color: #0dcaf0; /* Bootstrap's 'cyan' color */
+}
+
