@@ -11,22 +11,18 @@ import { Timer } from 'lucide-react';
 const PracticePage = () => {
     const navigate = useNavigate();
     const [difficulty, setDifficulty] = useState('easy');
-    const [timeMode, setTimeMode] = useState(30); // 15, 30, 60, or 'custom'
-    const [customTime, setCustomTime] = useState(15);
+    const [timeMode, setTimeMode] = useState(30); // 30, 45, or 60
     const [text, setText] = useState('');
     const [userInput, setUserInput] = useState('');
     const [isFinished, setIsFinished] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
+    const [customTime , setCustomTime] = useState(false);
     const inputRef = useRef(null);
     const userInputRef = useRef(''); // Ref to track input for timer closure
     const startTimeRef = useRef(null);
     const [elapsedTime, setElapsedTime] = useState(0);
 
     const getTimeLimit = () => {
-        if (timeMode === 'custom') {
-            const val = parseInt(customTime);
-            return isNaN(val) || val <= 0 ? 30 : val;
-        }
         return timeMode;
     };
 
@@ -88,7 +84,7 @@ const PracticePage = () => {
         savePracticeMatch({
             wpm, accuracy: isNaN(accuracy) ? 0 : accuracy, errorCount: errors, timeTaken: finalTime.toFixed(2), difficulty, promptText: text
         }).then(response => {
-            navigate(`/analysis/${response.data.matchId}`, {
+            navigate(`/results/${response.data.matchId}`, {
                 state: { results: response.data.results, room: { difficulty } }
             });
         }).catch(err => {
@@ -156,7 +152,7 @@ const PracticePage = () => {
                         <div className="mt-4">
                             <h5 className="mb-3 text-muted small text-uppercase fw-bold ls-1">Time (seconds)</h5>
                             <div className="d-flex justify-content-center gap-2">
-                                {[15, 30, 60, 120].map(t => (
+                                {[30, 45, 60].map(t => (
                                     <Button
                                         key={t}
                                         variant={timeMode === t ? 'info' : 'outline-secondary'}
@@ -167,28 +163,7 @@ const PracticePage = () => {
                                         {t}
                                     </Button>
                                 ))}
-                                <Button
-                                    variant={timeMode === 'custom' ? 'info' : 'outline-secondary'}
-                                    onClick={() => setTimeMode('custom')}
-                                    className={`rounded-pill px-4 fw-bold ${timeMode === 'custom' ? 'text-black' : 'text-white-50'}`}
-                                    size="sm"
-                                >
-                                    Custom
-                                </Button>
                             </div>
-
-                            {timeMode === 'custom' && (
-                                <div className="mt-3">
-                                    <input
-                                        type="number"
-                                        className="form-control bg-dark text-white border-secondary text-center mx-auto"
-                                        style={{ maxWidth: '100px' }}
-                                        value={customTime}
-                                        onChange={(e) => setCustomTime(e.target.value)}
-                                        placeholder="Seconds"
-                                    />
-                                </div>
-                            )}
                         </div>
 
                         <Button variant="info" size="lg" className="mt-5 px-5 transition-all rounded-pill fw-bold" onClick={startPractice}>
