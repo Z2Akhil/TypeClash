@@ -47,9 +47,9 @@ module.exports = (io) => {
                 delete rooms[roomCode];
             } else {
                 if (wasHost) {
-                    const newHostSocketId = Object.keys(room.players)[0];
-                    if (room.players[newHostSocketId]) {
-                        room.players[newHostSocketId].isHost = true;
+                    const nextSocketId = Object.keys(room.players)[0];
+                    if (room.players[nextSocketId]) {
+                        room.players[nextSocketId].isHost = true;
                     }
                 }
                 io.to(roomCode).emit('roomUpdate', room);
@@ -64,7 +64,8 @@ module.exports = (io) => {
                 roomCode,
                 players: {
                     [socket.id]: {
-                        id: socket.userData.profileId,
+                        id: socket.userData.profileId, // Add for compatibility
+                        profileId: socket.userData.profileId,
                         ...socket.userData,
                         isHost: true,
                     }
@@ -78,62 +79,71 @@ module.exports = (io) => {
         socket.on('joinRoom', ({ roomCode }) => {
             if (!socket.userData) return;
             const room = rooms[roomCode];
-            if (room && room.status === 'waiting' && Object.keys(room.players).length < 6) {
-                socket.join(roomCode);
+            if (!room) {
+                return socket.emit('error', { message: 'Room not found.' });
+            }
+
+            // Check if user is already in the room (even with another socket ID)
+            const existingSocketId = Object.keys(room.players).find(
+                sId => room.players[sId].profileId === socket.userData.profileId
+            );
+
+            if (existingSocketId) {
+                const wasHost = room.players[existingSocketId].isHost;
+                delete room.players[existingSocketId];
                 room.players[socket.id] = {
-                    id: socket.userData.profileId,
+                    profileId: socket.userData.profileId,
+                    ...socket.userData,
+                    isHost: wasHost
+                };
+            } else if (room.status === 'waiting' && Object.keys(room.players).length < 6) {
+                room.players[socket.id] = {
+                    profileId: socket.userData.profileId,
                     ...socket.userData,
                     isHost: false,
                 };
-                io.to(roomCode).emit('roomUpdate', room);
             } else {
-                socket.emit('error', { message: 'Cannot join room.' });
+                return socket.emit('error', { message: 'Cannot join room.' });
             }
+
+            socket.join(roomCode);
+            io.to(roomCode).emit('roomUpdate', room);
         });
 
-        // ✅ FIXED startGame LOGIC
         socket.on('startGame', ({ roomCode }) => {
             const room = rooms[roomCode];
-            if (!room || !room.players[socket.id]?.isHost || room.status !== 'waiting') return;
+            const player = socket.userData ? Object.values(room?.players || {}).find(p => p.profileId === socket.userData.profileId) : null;
 
-            // Check if this is a rematch by seeing if any player has opted in.
+            if (!room || !player?.isHost || room.status !== 'waiting') return;
+
             const isRematch = Object.values(room.players).some(p => p.wantsToPlayAgain);
-
             let playersForThisRound;
 
             if (isRematch) {
-                // If it's a rematch, filter for players who opted in.
                 playersForThisRound = Object.entries(room.players)
-                    .filter(([socketId, player]) => player.wantsToPlayAgain)
-                    .reduce((obj, [socketId, player]) => {
-                        obj[socketId] = player;
+                    .filter(([sId, p]) => p.wantsToPlayAgain)
+                    .reduce((obj, [sId, p]) => {
+                        obj[sId] = p;
                         return obj;
                     }, {});
             } else {
-                // If it's a new game, include everyone currently in the lobby.
                 playersForThisRound = room.players;
             }
 
-            // Abort if no players are left or if the host isn't in the group.
-            if (Object.keys(playersForThisRound).length === 0 || !playersForThisRound[socket.id]) {
-                return;
-            }
-
-            // The room's official player list is now the correct set of players for this round.
+            if (Object.keys(playersForThisRound).length === 0) return;
             room.players = playersForThisRound;
 
-            // Ensure a host exists among the remaining players (important for rematches).
             if (!Object.values(room.players).some(p => p.isHost)) {
-                room.players[socket.id].isHost = true;
+                const firstId = Object.keys(room.players)[0];
+                room.players[firstId].isHost = true;
             }
 
-            // Reset stats ONLY for the players who are continuing.
-            Object.values(room.players).forEach(player => {
-                player.progress = 0;
-                player.wpm = 0;
-                player.isFinished = false;
-                player.finalStats = null;
-                player.wantsToPlayAgain = false; // Reset for the *next* potential rematch
+            Object.values(room.players).forEach(p => {
+                p.progress = 0;
+                p.wpm = 0;
+                p.isFinished = false;
+                p.finalStats = null;
+                p.wantsToPlayAgain = false;
             });
 
             const text = generateRandomText(room.difficulty);
@@ -141,7 +151,6 @@ module.exports = (io) => {
             room.promptText = text;
             room.startTime = Date.now();
 
-            // Broadcast the final, correct state to start the game.
             io.to(roomCode).emit('roomUpdate', room);
             io.to(roomCode).emit('gameStarted', { text, startTime: room.startTime });
         });
@@ -156,7 +165,6 @@ module.exports = (io) => {
             }
         });
 
-        // ✅ FIXED 'finishGame' handler with Server-side Validation
         socket.on('finishGame', async ({ roomCode, userInput, timeTaken }) => {
             const room = rooms[roomCode];
             if (!room || !socket.userData) return;
@@ -164,26 +172,18 @@ module.exports = (io) => {
             const player = room.players[socket.id];
             if (!player || player.isFinished) return;
 
-            // SERVER-SIDE VALIDATION: Re-calculate stats based on the authoritative promptText
             const promptText = room.promptText;
-            const userText = userInput || ""; // Use the full text sent by client at the end
+            const userText = userInput || "";
 
             let errors = 0;
             const minLength = Math.min(promptText.length, userText.length);
-
             for (let i = 0; i < minLength; i++) {
-                if (promptText[i] !== userText[i]) {
-                    errors++;
-                }
+                if (promptText[i] !== userText[i]) errors++;
             }
-            // Add errors for missing or extra characters
             errors += Math.abs(promptText.length - userText.length);
 
             const accuracy = Math.round((Math.max(0, promptText.length - errors) / promptText.length) * 100);
-
-            // Final WPM calculation on server (authoritative)
-            const wordsTyped = userText.length / 5;
-            const finalWPM = timeTaken > 0 ? Math.round((wordsTyped / (timeTaken / 60))) : 0;
+            const finalWPM = timeTaken > 0 ? Math.round(((userText.length / 5) / (timeTaken / 60))) : 0;
 
             player.isFinished = true;
             player.finalStats = {
@@ -198,12 +198,9 @@ module.exports = (io) => {
             io.to(roomCode).emit('playerFinished', { id: socket.id, finalStats: player.finalStats });
 
             const allActivePlayers = Object.values(room.players);
-            const allFinished = allActivePlayers.every(p => p.isFinished);
-
-            if (allFinished) {
+            if (allActivePlayers.every(p => p.isFinished)) {
                 room.status = 'finished';
-                const results = allActivePlayers.map(p => p.finalStats).filter(Boolean);
-                results.sort((a, b) => b.wpm - a.wpm);
+                const results = allActivePlayers.map(p => p.finalStats).filter(Boolean).sort((a, b) => b.wpm - a.wpm);
 
                 const match = new Match({
                     gameMode: 'multiplayer',
@@ -220,43 +217,39 @@ module.exports = (io) => {
             }
         });
 
-        // ✅ NEW 'play-again' LOGIC
         socket.on('play-again', ({ roomCode }) => {
             if (!socket.userData) return;
             const room = rooms[roomCode];
             if (!room || !room.players[socket.id]) return;
 
-            // FIX: Allow players to join for a rematch as long as the game is over.
-            // The status can be 'finished' (for the first player) or 'waiting' (for subsequent players).
             if (room.status === 'finished' || room.status === 'waiting') {
-
-                // If this is the first player to click, flip the status.
-                if (room.status === 'finished') {
-                    room.status = 'waiting';
-                }
-
+                if (room.status === 'finished') room.status = 'waiting';
                 room.players[socket.id].wantsToPlayAgain = true;
-
-                // Tell client it's okay to navigate to lobby
                 socket.emit('rematch-ready', { roomCode });
-
-                // Let everyone else in the room know this player is ready
-                // This will update the lobby for players who are already there.
                 io.to(roomCode).emit('roomUpdate', room);
             }
         });
 
-        socket.on('leaveRoom', ({ roomCode }) => {
-            leaveRoomHandler(socket);
-        });
-
-        socket.on('disconnect', () => {
-            leaveRoomHandler(socket);
-        });
-
+        socket.on('leaveRoom', ({ roomCode }) => leaveRoomHandler(socket));
+        socket.on('disconnect', () => leaveRoomHandler(socket));
         socket.on('getRoomState', ({ roomCode }) => {
             const room = rooms[roomCode];
             if (room) {
+                if (socket.userData && !room.players[socket.id]) {
+                    const existingSocketId = Object.keys(room.players).find(
+                        sId => room.players[sId].profileId === socket.userData.profileId
+                    );
+                    if (existingSocketId) {
+                        const wasHost = room.players[existingSocketId].isHost;
+                        delete room.players[existingSocketId];
+                        room.players[socket.id] = {
+                            profileId: socket.userData.profileId,
+                            ...socket.userData,
+                            isHost: wasHost
+                        };
+                        socket.join(roomCode);
+                    }
+                }
                 socket.emit('roomUpdate', room);
             }
         });

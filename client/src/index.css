@@ -16,9 +16,10 @@ body {
   color: var(--text-light);
   font-family: 'Inter', sans-serif;
   min-height: 100vh;
+  overflow: hidden; /* Prevent scrolling for focus */
 }
 
-pre, code, .fs-4 {
+pre, code, .fs-4, .typing-area, .fs-1, .fs-2 {
   font-family: 'JetBrains Mono', monospace !important;
 }
 
@@ -48,5 +49,54 @@ pre, code, .fs-4 {
 
 .transition-all {
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.monkey-cursor {
+  position: relative;
+  color: #ffffff !important; /* Pure white when active */
+  transition: color 0.1s ease;
+}
+
+.monkey-cursor::before {
+  content: '';
+  position: absolute;
+  left: -2px;
+  top: 5%;
+  width: 3px;
+  height: 90%;
+  background-color: var(--cyan-accent);
+  box-shadow: 0 0 15px var(--cyan-accent);
+  border-radius: 2px;
+  animation: monkey-pulse 0.6s infinite alternate ease-in-out;
+  z-index: 10;
+}
+
+@keyframes monkey-pulse {
+  from { opacity: 0.5; transform: scaleY(0.9); }
+  to { opacity: 1; transform: scaleY(1); }
+}
+
+.active-char {
+  background-color: rgba(34, 211, 238, 0.1);
+  border-radius: 4px;
+}
+
+/* Monkeytype specific text colors */
+.text-info {
+  color: #e2e8f0 !important; /* Light white/gray for correct */
+}
+
+.text-danger {
+  color: #ef4444 !important; /* Bright red for incorrect */
+  background-color: transparent !important;
+  text-decoration: underline;
+}
+
+.text-white-50 {
+  color: #475569 !important; /* Even more muted for upcoming */
+}
+
+.transition-all {
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

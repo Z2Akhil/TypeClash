@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSocket } from '../contexts/SocketContext';
-import { useNavigate, useLocation,useParams  } from 'react-router-dom';
+import { useNavigate, useLocation, useParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Users, Crown, Copy, ArrowLeft } from 'lucide-react';
 import Card from 'react-bootstrap/Card';
@@ -29,44 +29,44 @@ const GameLobby = () => {
     }, [socket, roomCode, location.state?.room?.roomCode]);
 
     useEffect(() => {
-  if (!socket) return;
+        if (!socket) return;
 
-  const handleRoomUpdate = (roomData) => {
-    setRoom(roomData);
-    if (roomData.status === 'in-progress') {
-      navigate(`/room/${roomData.roomCode}`, { state: { room: roomData } });
-    }
-  };
+        const handleRoomUpdate = (roomData) => {
+            setRoom(roomData);
+            if (roomData.status === 'in-progress') {
+                navigate(`/room/${roomData.roomCode}`, { state: { room: roomData } });
+            }
+        };
 
-  const handleGameStarted = ({ text, startTime }) => {
-    // Navigate to the typing game screen with extra game data
-    navigate(`/room/${room.roomCode}`, {
-      state: {
-        room: {
-          ...room,
-          promptText: text,
-          startTime,
-          status: 'in-progress',
-        },
-      },
-    });
-  };
+        const handleGameStarted = ({ text, startTime }) => {
+            // Navigate to the typing game screen with extra game data
+            navigate(`/room/${room.roomCode}`, {
+                state: {
+                    room: {
+                        ...room,
+                        promptText: text,
+                        startTime,
+                        status: 'in-progress',
+                    },
+                },
+            });
+        };
 
-  const handleError = ({ message }) => {
-    alert(message);
-    navigate('/');
-  };
+        const handleError = ({ message }) => {
+            alert(message);
+            navigate('/');
+        };
 
-  socket.on('roomUpdate', handleRoomUpdate);
-  socket.on('gameStarted', handleGameStarted); // ✅ Add this
-  socket.on('error', handleError);
+        socket.on('roomUpdate', handleRoomUpdate);
+        socket.on('gameStarted', handleGameStarted); // ✅ Add this
+        socket.on('error', handleError);
 
-  return () => {
-    socket.off('roomUpdate', handleRoomUpdate);
-    socket.off('gameStarted', handleGameStarted); // ✅ Clean up
-    socket.off('error', handleError);
-  };
-}, [socket, navigate, room]);
+        return () => {
+            socket.off('roomUpdate', handleRoomUpdate);
+            socket.off('gameStarted', handleGameStarted); // ✅ Clean up
+            socket.off('error', handleError);
+        };
+    }, [socket, navigate, room]);
 
     // ⏱️ Optional: Add a timeout fallback if room is never set
     useEffect(() => {
@@ -89,33 +89,30 @@ const GameLobby = () => {
     if (!room) {
         return (
             <div className="text-center mt-5">
-                <Spinner animation="border" variant="info" /> 
+                <Spinner animation="border" variant="info" />
                 <span className="ms-2">Waiting for room details...</span>
             </div>
         );
     }
 
     const players = Object.values(room.players);
-    const isHost = players.find(p => p.id === backendUser.profileId)?.isHost;
-
-
-
+    const isHost = players.find(p => p.profileId === backendUser.profileId)?.isHost;
 
     return (
         <Card className="bg-dark-secondary shadow-lg">
             <Card.Header className="p-3 d-flex justify-content-between align-items-center">
                 <Card.Title as="h2" className="mb-0 text-cyan">Lobby</Card.Title>
                 <Button
-                variant="outline-secondary"
-                size="sm"
-                onClick={() => {
-                    if (socket && room) {
-                    socket.emit('leaveRoom', { roomCode: room.roomCode });
-                    }
-                    navigate('/');
-                }}
+                    variant="outline-secondary"
+                    size="sm"
+                    onClick={() => {
+                        if (socket && room) {
+                            socket.emit('leaveRoom', { roomCode: room.roomCode });
+                        }
+                        navigate('/');
+                    }}
                 >
-                <ArrowLeft size={16} className="me-2" /> Leave
+                    <ArrowLeft size={16} className="me-2" /> Leave
                 </Button>
             </Card.Header>
             <Card.Body className="p-4">
@@ -129,7 +126,7 @@ const GameLobby = () => {
                         <h5 className="mb-3"><Users size={20} className="me-2 text-cyan" /> Players ({players.length}/6)</h5>
                         <ListGroup>
                             {players.map(p => (
-                                <ListGroup.Item key={p.id} className="d-flex justify-content-between align-items-center bg-dark">
+                                <ListGroup.Item key={p.profileId} className="d-flex justify-content-between align-items-center bg-dark">
                                     {p.username}
                                     {p.isHost && <Crown size={20} className="text-warning" />}
                                 </ListGroup.Item>

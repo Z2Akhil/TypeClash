@@ -97,14 +97,14 @@ const GameRoom = () => {
         if (char === userInput[index]) {
           className = 'text-info'; // Correctly typed
         } else {
-          className = 'text-danger bg-danger-subtle rounded px-0'; // Error
+          className = 'text-danger'; // Error
         }
-      } else if (index === userInput.length && gameStarted && !isFinished) {
-        className = 'text-white fw-bold border-bottom border-2 border-info'; // Cursor position
+      } else if (index === userInput.length && !isFinished) {
+        className = 'monkey-cursor active-char fw-bold'; // Cursor position
       }
 
       return (
-        <span key={index} className={className} style={decoration}>
+        <span key={index} className={`${className} transition-all`} style={decoration}>
           {char}
         </span>
       );
