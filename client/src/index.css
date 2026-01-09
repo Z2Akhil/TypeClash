@@ -1,16 +1,52 @@
-/* Set the default theme to dark */
-body {
-  background-color: #212529; /* Bootstrap's 'dark' color */
-  color: #f8f9fa; /* Bootstrap's 'light' color */
-  font-family: monospace;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap');
+
+:root {
+  --bg-dark: #0f172a;
+  --bg-dark-secondary: #1e293b;
+  --cyan-accent: #22d3ee;
+  --info-accent: #38bdf8;
+  --text-muted: #94a3b8;
+  --text-light: #f8fafc;
 }
 
-/* Custom styles for a darker theme on components */
+body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at top, #1e293b 0%, #0f172a 100%);
+  color: var(--text-light);
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+}
+
+pre, code, .fs-4 {
+  font-family: 'JetBrains Mono', monospace !important;
+}
+
 .bg-dark-secondary {
-  background-color: #343a40; /* Bootstrap's 'secondary' dark gray */
+  background-color: var(--bg-dark-secondary) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
 }
 
 .text-cyan {
-  color: #0dcaf0; /* Bootstrap's 'cyan' color */
+  color: var(--cyan-accent);
+}
+
+.text-info {
+  color: var(--info-accent) !important;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.1); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+.animate-pulse {
+  animation: pulse 1s infinite ease-in-out;
+}
+
+.transition-all {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 

@@ -4,21 +4,30 @@ const { generateRandomText } = require('../utils/textGenerator');
 const { customAlphabet } = require('nanoid');
 const Match = require('../models/Match');
 const User = require('../models/User');
+const admin = require('../config/firebaseAdmin');
 
 const generateRoomCode = customAlphabet('ABCDEFGHJKLMNPQRSTUVWXYZ23456789', 6);
 const rooms = {}; // In-memory store for active rooms
 
 module.exports = (io) => {
     io.on('connection', (socket) => {
-        socket.on('authenticate', async (firebaseUid) => {
-            const user = await User.findOne({ firebaseUid }).select('username profileId');
-            if (user) {
-                socket.userData = {
-                    username: user.username,
-                    profileId: user.profileId,
-                    _id: user._id
-                };
-                console.log(`Socket Authenticated: ${socket.id} as ${user.username}`);
+        socket.on('authenticate', async (idToken) => {
+            try {
+                const decodedToken = await admin.auth().verifyIdToken(idToken);
+                const user = await User.findOne({ firebaseUid: decodedToken.uid }).select('username profileId');
+                if (user) {
+                    socket.userData = {
+                        username: user.username,
+                        profileId: user.profileId,
+                        _id: user._id,
+                        firebaseUid: decodedToken.uid
+                    };
+                    console.log(`Socket Authenticated: ${socket.id} as ${user.username}`);
+                    socket.emit('authenticated', { username: user.username });
+                }
+            } catch (error) {
+                console.error('Socket authentication error:', error);
+                socket.emit('error', { message: 'Authentication failed.' });
             }
         });
 
@@ -40,7 +49,7 @@ module.exports = (io) => {
                 if (wasHost) {
                     const newHostSocketId = Object.keys(room.players)[0];
                     if (room.players[newHostSocketId]) {
-                       room.players[newHostSocketId].isHost = true;
+                        room.players[newHostSocketId].isHost = true;
                     }
                 }
                 io.to(roomCode).emit('roomUpdate', room);
@@ -126,14 +135,14 @@ module.exports = (io) => {
                 player.finalStats = null;
                 player.wantsToPlayAgain = false; // Reset for the *next* potential rematch
             });
-            
+
             const text = generateRandomText(room.difficulty);
             room.status = 'in-progress';
             room.promptText = text;
             room.startTime = Date.now();
 
             // Broadcast the final, correct state to start the game.
-            io.to(roomCode).emit('roomUpdate', room); 
+            io.to(roomCode).emit('roomUpdate', room);
             io.to(roomCode).emit('gameStarted', { text, startTime: room.startTime });
         });
 
@@ -147,47 +156,69 @@ module.exports = (io) => {
             }
         });
 
-        // ✅ FIXED 'finishGame' handler
-            socket.on('finishGame', async ({ roomCode, accuracy, errorCount, timeTaken }) => { // Removed 'wpm' from payload
-                const room = rooms[roomCode];
-                if (!room || !socket.userData) return;
+        // ✅ FIXED 'finishGame' handler with Server-side Validation
+        socket.on('finishGame', async ({ roomCode, userInput, timeTaken }) => {
+            const room = rooms[roomCode];
+            if (!room || !socket.userData) return;
 
-                const player = room.players[socket.id];
-                if (!player || player.isFinished) return; // Ignore if no player or already finished
+            const player = room.players[socket.id];
+            if (!player || player.isFinished) return;
 
-                // KEY CHANGE: Use the WPM value the server has been tracking from 'userInput' events.
-                const finalWPM = player.wpm;
+            // SERVER-SIDE VALIDATION: Re-calculate stats based on the authoritative promptText
+            const promptText = room.promptText;
+            const userText = userInput || ""; // Use the full text sent by client at the end
 
-                player.isFinished = true;
-                // Use the server's authoritative WPM for the final stats.
-                player.finalStats = { user: socket.userData._id, username: socket.userData.username, wpm: finalWPM, accuracy, errorCount, timeTaken };
+            let errors = 0;
+            const minLength = Math.min(promptText.length, userText.length);
 
-                io.to(roomCode).emit('playerFinished', { id: socket.id, finalStats: player.finalStats });
-
-                const allActivePlayers = Object.values(room.players);
-                const allFinished = allActivePlayers.every(p => p.isFinished);
-
-                if (allFinished) {
-                    room.status = 'finished'; // Mark status as finished
-                    const results = allActivePlayers.map(p => p.finalStats).filter(Boolean); // Ensure no nulls
-                    results.sort((a, b) => b.wpm - a.wpm);
-
-                    const match = new Match({
-                        gameMode: 'multiplayer',
-                        roomCode,
-                        difficulty: room.difficulty,
-                        promptText: room.promptText,
-                        players: results,
-                        winner: results.length > 0 ? results[0].user : null,
-                    });
-                    await match.save();
-
-                    // Reset player "wantsToPlayAgain" state for the next round
-                    allActivePlayers.forEach(p => p.wantsToPlayAgain = false);
-
-                    io.to(roomCode).emit('gameFinished', { results, matchId: match._id, room: { roomCode: room.roomCode } });
+            for (let i = 0; i < minLength; i++) {
+                if (promptText[i] !== userText[i]) {
+                    errors++;
                 }
-            });
+            }
+            // Add errors for missing or extra characters
+            errors += Math.abs(promptText.length - userText.length);
+
+            const accuracy = Math.round((Math.max(0, promptText.length - errors) / promptText.length) * 100);
+
+            // Final WPM calculation on server (authoritative)
+            const wordsTyped = userText.length / 5;
+            const finalWPM = timeTaken > 0 ? Math.round((wordsTyped / (timeTaken / 60))) : 0;
+
+            player.isFinished = true;
+            player.finalStats = {
+                user: socket.userData._id,
+                username: socket.userData.username,
+                wpm: finalWPM,
+                accuracy,
+                errorCount: errors,
+                timeTaken
+            };
+
+            io.to(roomCode).emit('playerFinished', { id: socket.id, finalStats: player.finalStats });
+
+            const allActivePlayers = Object.values(room.players);
+            const allFinished = allActivePlayers.every(p => p.isFinished);
+
+            if (allFinished) {
+                room.status = 'finished';
+                const results = allActivePlayers.map(p => p.finalStats).filter(Boolean);
+                results.sort((a, b) => b.wpm - a.wpm);
+
+                const match = new Match({
+                    gameMode: 'multiplayer',
+                    roomCode,
+                    difficulty: room.difficulty,
+                    promptText: room.promptText,
+                    players: results,
+                    winner: results.length > 0 ? results[0].user : null,
+                });
+                await match.save();
+
+                allActivePlayers.forEach(p => p.wantsToPlayAgain = false);
+                io.to(roomCode).emit('gameFinished', { results, matchId: match._id, room: { roomCode: room.roomCode } });
+            }
+        });
 
         // ✅ NEW 'play-again' LOGIC
         socket.on('play-again', ({ roomCode }) => {
@@ -198,7 +229,7 @@ module.exports = (io) => {
             // FIX: Allow players to join for a rematch as long as the game is over.
             // The status can be 'finished' (for the first player) or 'waiting' (for subsequent players).
             if (room.status === 'finished' || room.status === 'waiting') {
-                
+
                 // If this is the first player to click, flip the status.
                 if (room.status === 'finished') {
                     room.status = 'waiting';
@@ -224,10 +255,10 @@ module.exports = (io) => {
         });
 
         socket.on('getRoomState', ({ roomCode }) => {
-             const room = rooms[roomCode];
-             if (room) {
-                 socket.emit('roomUpdate', room);
-             }
+            const room = rooms[roomCode];
+            if (room) {
+                socket.emit('roomUpdate', room);
+            }
         });
     });
 };

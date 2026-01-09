@@ -72,13 +72,13 @@ const PracticePage = () => {
         text.split('').map((char, index) => {
             let className = 'text-white-50';
             if (index < userInput.length) {
-                className = char === userInput[index] ? 'text-info' : 'text-danger bg-danger-subtle';
+                className = char === userInput[index] ? 'text-info' : 'text-danger bg-danger-subtle rounded px-0';
+            } else if (index === userInput.length && hasStarted && !isFinished) {
+                className = 'text-white fw-bold border-bottom border-2 border-info';
             }
             return (
                 <span key={index} className={className}>
                     {char}
-                    {/* Render caret if it's the current position */}
-                    {index === userInput.length - 1 && !isFinished && <span className="blinking-caret" />}
                 </span>
             );
         });

@@ -4,6 +4,12 @@ const aiAnalysisService = require('../services/aiAnalysisService');
 
 exports.savePracticeMatch = async (req, res) => {
     const { wpm, accuracy, errorCount, timeTaken, difficulty, promptText } = req.body;
+
+    // Basic Validation
+    if (wpm > 250 || accuracy > 100 || accuracy < 0) {
+        return res.status(400).json({ message: 'Invalid match statistics.' });
+    }
+
     try {
         const user = await User.findOne({ firebaseUid: req.user.uid });
         if (!user) {
@@ -11,7 +17,7 @@ exports.savePracticeMatch = async (req, res) => {
         }
 
         const playerResult = {
-            user: user._id,
+            user: user._id, // Authoritative user ID
             username: user.username,
             wpm,
             accuracy,
@@ -34,8 +40,12 @@ exports.savePracticeMatch = async (req, res) => {
         if (wpm > user.stats.highestWpm) {
             user.stats.highestWpm = wpm;
         }
-        // A more complex average calculation could be done here
-        user.stats.averageWpm = ((user.stats.averageWpm * (user.stats.totalRaces - 1)) + wpm) / user.stats.totalRaces;
+
+        // Improved average calculation (handles 0 races)
+        const totalRaces = user.stats.totalRaces;
+        const currentAvg = user.stats.averageWpm || 0;
+        user.stats.averageWpm = ((currentAvg * (totalRaces - 1)) + wpm) / totalRaces;
+
         await user.save();
 
         res.status(201).json({ message: 'Practice match saved', matchId: match._id, results: [playerResult] });
@@ -63,24 +73,24 @@ exports.getMatchHistory = async (req, res) => {
 };
 
 exports.getAIAnalysis = async (req, res) => {
-  const { wpm, accuracy, errorCount, difficulty, timeTaken } = req.body;
-  if (!wpm || !accuracy || !difficulty) {
-    return res.status(400).json({ message: 'Missing required stats for analysis.' });
-  }
+    const { wpm, accuracy, errorCount, difficulty, timeTaken } = req.body;
+    if (!wpm || !accuracy || !difficulty) {
+        return res.status(400).json({ message: 'Missing required stats for analysis.' });
+    }
 
-  try {
-    const analysis = await aiAnalysisService.getTypingAnalysis({
-      wpm,
-      accuracy,
-      errors: errorCount,
-      difficulty,
-      timeTaken
-    });
-    res.json({ analysis });
-  } catch (error) {
-    console.error("AI Analysis Controller Error:", error);
-    res.status(500).json({ message: 'Failed to get AI analysis.' });
-  }
+    try {
+        const analysis = await aiAnalysisService.getTypingAnalysis({
+            wpm,
+            accuracy,
+            errors: errorCount,
+            difficulty,
+            timeTaken
+        });
+        res.json({ analysis });
+    } catch (error) {
+        console.error("AI Analysis Controller Error:", error);
+        res.status(500).json({ message: 'Failed to get AI analysis.' });
+    }
 };
 
 // Add this new function

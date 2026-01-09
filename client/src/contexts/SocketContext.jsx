@@ -15,10 +15,15 @@ export const SocketProvider = ({ children }) => {
     useEffect(() => {
         if (currentUser) {
             const newSocket = io(import.meta.env.VITE_SERVER_URL);
-            
-            newSocket.on('connect', () => {
-                // Authenticate the socket connection with the backend
-                newSocket.emit('authenticate', currentUser.uid);
+
+            newSocket.on('connect', async () => {
+                // Authenticate the socket connection with the backend using the ID Token
+                try {
+                    const token = await currentUser.getIdToken();
+                    newSocket.emit('authenticate', token);
+                } catch (error) {
+                    console.error("Error getting ID token for socket auth:", error);
+                }
             });
 
             setSocket(newSocket);
