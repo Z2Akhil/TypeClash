@@ -53,8 +53,7 @@ pre, code, .fs-4, .typing-area, .fs-1, .fs-2 {
 
 .monkey-cursor {
   position: relative;
-  color: #ffffff !important; /* Pure white when active */
-  transition: color 0.1s ease;
+  /* Letter stays muted, only the cursor bar shows */
 }
 
 .monkey-cursor::before {
@@ -65,7 +64,6 @@ pre, code, .fs-4, .typing-area, .fs-1, .fs-2 {
   width: 3px;
   height: 90%;
   background-color: var(--cyan-accent);
-  box-shadow: 0 0 15px var(--cyan-accent);
   border-radius: 2px;
   animation: monkey-pulse 0.6s infinite alternate ease-in-out;
   z-index: 10;
