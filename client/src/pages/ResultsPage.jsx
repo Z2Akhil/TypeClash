@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
-import { Crown, BarChart2, BrainCircuit, RefreshCw, ThumbsUp } from 'lucide-react';
+import { Crown, BarChart2, ThumbsUp, Home } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import axios from 'axios';
 
 import { getAIAnalysis } from '../api/index.jsx';
 import { useAuth } from '../contexts/AuthContext.jsx';
-import { useSocket } from '../contexts/SocketContext.jsx';
 
 import Card from 'react-bootstrap/Card';
 import Button from 'react-bootstrap/Button';
@@ -21,25 +20,15 @@ const ResultsPage = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const { backendUser, token } = useAuth();
-    const socket = useSocket();
 
     // --- STATE MANAGEMENT ---
     const [results, setResults] = useState(location.state?.results || []);
-    const [roomCode, setRoomCode] = useState(location.state?.room?.roomCode || null);
     const [difficulty, setDifficulty] = useState(location.state?.room?.difficulty || 'unknown');
     const [aiSuggestion, setAiSuggestion] = useState('');
     const [isLoadingPage, setIsLoadingPage] = useState(true);
     const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
-    
-    // --- EFFECTS ---
 
-    useEffect(() => {
-        if (socket && roomCode) {
-            const handleRematch = (data) => navigate(`/lobby/${data.roomCode}`);
-            socket.on('rematch-ready', handleRematch);
-            return () => socket.off('rematch-ready', handleRematch);
-        }
-    }, [socket, navigate, roomCode]);
+    // --- EFFECTS ---
 
     useEffect(() => {
         if (matchId && results.length === 0) {
@@ -50,7 +39,6 @@ const ResultsPage = () => {
                     });
                     const match = response.data;
                     setResults(match.players);
-                    setRoomCode(match.roomCode); 
                     setDifficulty(match.difficulty);
                 } catch (error) {
                     console.error("Failed to fetch match data:", error);
@@ -67,18 +55,7 @@ const ResultsPage = () => {
 
     // --- HANDLER FUNCTIONS ---
 
-    const handlePlayAgain = () => {
-        if (roomCode && socket) {
-            socket.emit('play-again', { roomCode });
-        } else {
-            navigate('/practice');
-        }
-    };
-
-    const handleNewMatch = () => {
-        if (roomCode && socket) {
-            socket.emit('leaveRoom', { roomCode });
-        }
+    const handleBackToHome = () => {
         navigate('/');
     };
 
@@ -100,12 +77,11 @@ const ResultsPage = () => {
 
     // --- HELPER FUNCTIONS & DERIVED STATE ---
 
-    // FIX: The getPraiseMessage function is restored here.
     const getPraiseMessage = (wpm) => {
         if (wpm >= 100) return "🔥 Incredible speed! You're typing like a pro.";
-        if (wpm >= 80) return "💪 Great job! You’re well above average.";
+        if (wpm >= 80) return "💪 Great job! You're well above average.";
         if (wpm >= 60) return "👍 Good speed! With some practice, you'll be elite.";
-        if (wpm >= 40) return "🙂 Not bad! Let’s work on pushing past 60 WPM.";
+        if (wpm >= 40) return "🙂 Not bad! Let's work on pushing past 60 WPM.";
         return "🚀 You're getting started — keep practicing and improving!";
     };
 
@@ -164,8 +140,8 @@ const ResultsPage = () => {
                 <Row>
                     <Col lg={6} className="mb-4 mb-lg-0">
                         <Card bg="dark">
-                           <Card.Body>
-                                <Card.Title as="h5"><BarChart2 size={20} className="me-2 text-cyan" /> Performance Chart</Card.Title>
+                            <Card.Body>
+                                <Card.Title as="h5"><BarChart2 size={20} className="me-2 text-cyan" />Performance Chart</Card.Title>
                                 <ResponsiveContainer width="100%" height={300}>
                                     <BarChart data={chartData} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.3} />
@@ -183,7 +159,7 @@ const ResultsPage = () => {
                     <Col lg={6}>
                         <Card bg="dark" className="h-100">
                             <Card.Body>
-                                <Card.Title as="h5"><ThumbsUp size={20} className="me-2 text-cyan" /> Feedback & Suggestions</Card.Title>
+                                <Card.Title as="h5"><ThumbsUp size={20} className="me-2 text-cyan" />Feedback & Suggestions</Card.Title>
                                 {myStats && (
                                     <div className="mb-3">{getPraiseMessage(myStats.wpm)}</div>
                                 )}
@@ -201,13 +177,10 @@ const ResultsPage = () => {
                         </Card>
                     </Col>
                 </Row>
-                <div className="text-center mt-5 d-flex justify-content-center gap-3 flex-wrap">
-                    <Button variant="info" size="lg" onClick={handlePlayAgain} disabled={isLoadingPage && !!matchId}>
-                        <RefreshCw size={20} className="me-2" />
-                        {isLoadingPage && !!matchId ? 'Loading...' : 'Play Again'}
-                    </Button>
-                    <Button variant="secondary" size="lg" onClick={handleNewMatch}>
-                        <BrainCircuit size={20} className="me-2" /> New Match
+                <div className="text-center mt-5">
+                    <Button variant="info" size="lg" onClick={handleBackToHome}>
+                        <Home size={20} className="me-2" />
+                        Back to Home
                     </Button>
                 </div>
             </Card.Body>

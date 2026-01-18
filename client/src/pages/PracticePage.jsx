@@ -16,7 +16,7 @@ const PracticePage = () => {
     const [userInput, setUserInput] = useState('');
     const [isFinished, setIsFinished] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
-    const [customTime , setCustomTime] = useState(false);
+    const [customTime, setCustomTime] = useState(false);
     const inputRef = useRef(null);
     const userInputRef = useRef(''); // Ref to track input for timer closure
     const startTimeRef = useRef(null);
@@ -76,10 +76,12 @@ const PracticePage = () => {
         setIsFinished(true);
         const finalTime = (Date.now() - startTimeRef.current) / 1000;
         const currentInput = userInputRef.current;
-        const wordsTyped = currentInput.length / 5;
+        // Count only correctly typed characters for WPM calculation
+        const correctChars = currentInput.split('').reduce((acc, char, i) => acc + (char === text[i] ? 1 : 0), 0);
+        const errors = currentInput.length - correctChars;
+        const wordsTyped = correctChars / 5; // Standard: 5 characters = 1 word
         const wpm = Math.round((wordsTyped / finalTime) * 60);
-        const errors = currentInput.split('').reduce((acc, char, i) => acc + (char !== text[i] ? 1 : 0), 0);
-        const accuracy = text.length > 0 ? Math.round(((currentInput.length - errors) / currentInput.length) * 100) : 0;
+        const accuracy = currentInput.length > 0 ? Math.round((correctChars / currentInput.length) * 100) : 0;
 
         savePracticeMatch({
             wpm, accuracy: isNaN(accuracy) ? 0 : accuracy, errorCount: errors, timeTaken: finalTime.toFixed(2), difficulty, promptText: text

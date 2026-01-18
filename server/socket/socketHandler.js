@@ -40,8 +40,14 @@ module.exports = (io) => {
             if (!player) return;
 
             const wasHost = player.isHost;
+            const playerId = socket.id;
             delete room.players[socket.id];
             socket.leave(roomCode);
+
+            // Notify other players about the disconnect
+            if (room.status === 'in-progress') {
+                io.to(roomCode).emit('playerDisconnected', { id: playerId });
+            }
 
             if (Object.keys(room.players).length === 0) {
                 delete rooms[roomCode];
@@ -116,34 +122,12 @@ module.exports = (io) => {
 
             if (!room || !player?.isHost || room.status !== 'waiting') return;
 
-            const isRematch = Object.values(room.players).some(p => p.wantsToPlayAgain);
-            let playersForThisRound;
-
-            if (isRematch) {
-                playersForThisRound = Object.entries(room.players)
-                    .filter(([sId, p]) => p.wantsToPlayAgain)
-                    .reduce((obj, [sId, p]) => {
-                        obj[sId] = p;
-                        return obj;
-                    }, {});
-            } else {
-                playersForThisRound = room.players;
-            }
-
-            if (Object.keys(playersForThisRound).length === 0) return;
-            room.players = playersForThisRound;
-
-            if (!Object.values(room.players).some(p => p.isHost)) {
-                const firstId = Object.keys(room.players)[0];
-                room.players[firstId].isHost = true;
-            }
-
+            // Reset all players for new game
             Object.values(room.players).forEach(p => {
                 p.progress = 0;
                 p.wpm = 0;
                 p.isFinished = false;
                 p.finalStats = null;
-                p.wantsToPlayAgain = false;
             });
 
             const text = generateRandomText(room.difficulty);
@@ -175,15 +159,17 @@ module.exports = (io) => {
             const promptText = room.promptText;
             const userText = userInput || "";
 
-            let errors = 0;
+            // Count correct characters for accurate WPM calculation
+            let correctChars = 0;
             const minLength = Math.min(promptText.length, userText.length);
             for (let i = 0; i < minLength; i++) {
-                if (promptText[i] !== userText[i]) errors++;
+                if (promptText[i] === userText[i]) correctChars++;
             }
-            errors += Math.abs(promptText.length - userText.length);
+            const errors = userText.length - correctChars + Math.abs(promptText.length - userText.length);
 
-            const accuracy = Math.round((Math.max(0, promptText.length - errors) / promptText.length) * 100);
-            const finalWPM = timeTaken > 0 ? Math.round(((userText.length / 5) / (timeTaken / 60))) : 0;
+            const accuracy = Math.round((correctChars / Math.max(1, userText.length)) * 100);
+            // WPM based on correctly typed characters only (standard: 5 chars = 1 word)
+            const finalWPM = timeTaken > 0 ? Math.round(((correctChars / 5) / (timeTaken / 60))) : 0;
 
             player.isFinished = true;
             player.finalStats = {
@@ -212,21 +198,9 @@ module.exports = (io) => {
                 });
                 await match.save();
 
-                allActivePlayers.forEach(p => p.wantsToPlayAgain = false);
-                io.to(roomCode).emit('gameFinished', { results, matchId: match._id, room: { roomCode: room.roomCode } });
-            }
-        });
-
-        socket.on('play-again', ({ roomCode }) => {
-            if (!socket.userData) return;
-            const room = rooms[roomCode];
-            if (!room || !room.players[socket.id]) return;
-
-            if (room.status === 'finished' || room.status === 'waiting') {
-                if (room.status === 'finished') room.status = 'waiting';
-                room.players[socket.id].wantsToPlayAgain = true;
-                socket.emit('rematch-ready', { roomCode });
-                io.to(roomCode).emit('roomUpdate', room);
+                // Room is done - delete it after game finishes
+                delete rooms[roomCode];
+                io.to(roomCode).emit('gameFinished', { results, matchId: match._id });
             }
         });
 

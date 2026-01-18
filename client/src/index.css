@@ -23,6 +23,21 @@ pre, code, .fs-4, .typing-area, .fs-1, .fs-2 {
   font-family: 'JetBrains Mono', monospace !important;
 }
 
+/* Typing area optimizations for smooth rendering */
+.typing-area {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  will-change: contents;
+  transform: translateZ(0); /* Hardware acceleration */
+}
+
+.typing-area span {
+  display: inline;
+  will-change: color;
+  /* No transitions for instant feedback */
+}
+
 .bg-dark-secondary {
   background-color: var(--bg-dark-secondary) !important;
   border: 1px solid rgba(255, 255, 255, 0.05);
@@ -31,10 +46,6 @@ pre, code, .fs-4, .typing-area, .fs-1, .fs-2 {
 
 .text-cyan {
   color: var(--cyan-accent);
-}
-
-.text-info {
-  color: var(--info-accent) !important;
 }
 
 @keyframes pulse {
@@ -47,39 +58,32 @@ pre, code, .fs-4, .typing-area, .fs-1, .fs-2 {
   animation: pulse 1s infinite ease-in-out;
 }
 
-.transition-all {
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
+/* Smooth cursor with glow effect */
 .monkey-cursor {
   position: relative;
-  /* Letter stays muted, only the cursor bar shows */
 }
 
 .monkey-cursor::before {
   content: '';
   position: absolute;
-  left: -2px;
-  top: 5%;
-  width: 3px;
-  height: 90%;
+  left: -1px;
+  top: 0;
+  width: 2.5px;
+  height: 100%;
   background-color: var(--cyan-accent);
   border-radius: 2px;
-  animation: monkey-pulse 0.6s infinite alternate ease-in-out;
+  animation: cursor-blink 1s infinite ease-in-out;
+  box-shadow: 0 0 8px var(--cyan-accent), 0 0 12px rgba(34, 211, 238, 0.5);
   z-index: 10;
+  transform: translateZ(0); /* Hardware acceleration */
 }
 
-@keyframes monkey-pulse {
-  from { opacity: 0.5; transform: scaleY(0.9); }
-  to { opacity: 1; transform: scaleY(1); }
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
 }
 
-.active-char {
-  background-color: rgba(34, 211, 238, 0.1);
-  border-radius: 4px;
-}
-
-/* Monkeytype specific text colors */
+/* Monkeytype-style text colors - instant color changes */
 .text-info {
   color: #e2e8f0 !important; /* Light white/gray for correct */
 }
@@ -88,13 +92,20 @@ pre, code, .fs-4, .typing-area, .fs-1, .fs-2 {
   color: #ef4444 !important; /* Bright red for incorrect */
   background-color: transparent !important;
   text-decoration: underline;
+  text-decoration-color: #ef4444;
+  text-underline-offset: 3px;
 }
 
 .text-white-50 {
-  color: #475569 !important; /* Even more muted for upcoming */
+  color: #475569 !important; /* Muted for upcoming text */
 }
 
-.transition-all {
+/* Remove transition-all for typing spans - we want instant feedback */
+.typing-area .transition-all {
+  transition: none !important;
+}
+
+/* Keep transitions only for non-typing UI elements */
+.btn, .card, .progress-bar {
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
 }
-

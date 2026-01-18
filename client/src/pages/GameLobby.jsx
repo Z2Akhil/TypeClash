@@ -39,16 +39,21 @@ const GameLobby = () => {
         };
 
         const handleGameStarted = ({ text, startTime }) => {
-            // Navigate to the typing game screen with extra game data
-            navigate(`/room/${room.roomCode}`, {
-                state: {
-                    room: {
-                        ...room,
-                        promptText: text,
-                        startTime,
-                        status: 'in-progress',
-                    },
-                },
+            // Use functional update to get current room state and avoid stale closure
+            setRoom(currentRoom => {
+                if (currentRoom) {
+                    navigate(`/room/${currentRoom.roomCode}`, {
+                        state: {
+                            room: {
+                                ...currentRoom,
+                                promptText: text,
+                                startTime,
+                                status: 'in-progress',
+                            },
+                        },
+                    });
+                }
+                return currentRoom;
             });
         };
 
@@ -66,7 +71,7 @@ const GameLobby = () => {
             socket.off('gameStarted', handleGameStarted); // ✅ Clean up
             socket.off('error', handleError);
         };
-    }, [socket, navigate, room]);
+    }, [socket, navigate, roomCode]);
 
     // ⏱️ Optional: Add a timeout fallback if room is never set
     useEffect(() => {
